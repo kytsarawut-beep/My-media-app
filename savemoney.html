@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดส่งเอกสารการเงิน - Telegram</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .file-upload-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 120px;
+            border: 2px dashed #9ca3af;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            background-color: #f9fafb;
+            transition: all 0.2s;
+            text-align: center;
+            padding: 10px;
+        }
+        .file-upload-label:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .file-upload-label.has-file {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+            border-style: solid;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        /* Progress Overlay */
+        #progressOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 50;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .river {
+            width: 80%;
+            max-width: 400px;
+            height: 50px;
+            background: linear-gradient(to bottom, #3b82f6, #2563eb);
+            border-radius: 25px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.2);
+            border: 3px solid #1e3a8a;
+        }
+        .boat {
+            position: absolute;
+            top: 5px;
+            left: 0%;
+            font-size: 28px;
+            transition: left 0.4s ease-out;
+            transform: scaleX(-1); /* หันหน้าเรือไปทางขวา */
+        }
+        .percentage-text {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body class="text-gray-800 pb-20">
+
+    <div class="max-w-2xl mx-auto p-4">
+        <h1 class="text-2xl font-bold text-center text-blue-700 mb-6 mt-4">🧾 ส่งเอกสารการเงิน</h1>
+
+        <!-- ส่วนตั้งค่า Telegram -->
+        <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+            <h2 class="font-semibold mb-3 flex items-center"><span class="text-xl mr-2">⚙️</span> ตั้งค่าบอท Telegram</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input type="text" id="botToken" placeholder="Bot Token (วางโค้ดที่นี่)" class="w-full p-2 border rounded focus:ring focus:ring-blue-200 outline-none text-sm">
+                <input type="text" id="chatId" placeholder="Chat ID (เช่น -100...)" class="w-full p-2 border rounded focus:ring focus:ring-blue-200 outline-none text-sm">
+            </div>
+            <p class="text-xs text-green-600 mt-2">* ระบบจะจดจำค่านี้ไว้ในเครื่องของคุณ</p>
+        </div>
+
+        <form id="financeForm" onsubmit="submitForm(event)">
+            <!-- 1. เอกสารแผ่นแรก -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <h2 class="font-semibold mb-3">1. ภาพถ่ายเอกสารหน้าแรก</h2>
+                <label class="file-upload-label" id="lbl-mainDoc">
+                    <span class="text-3xl mb-1">📄</span>
+                    <span class="text-sm font-medium text-gray-600 id-text">แตะเพื่อเลือกรูปภาพ</span>
+                    <input type="file" id="mainDoc" accept="image/*" onchange="updateFileLabel(this, 'lbl-mainDoc')" required>
+                </label>
+            </div>
+
+            <!-- 2. วันที่ -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <h2 class="font-semibold mb-2">2. วันที่เอกสาร</h2>
+                <input type="date" id="docDate" class="w-full p-2 border rounded focus:ring focus:ring-blue-200 outline-none" required>
+            </div>
+
+            <!-- 3. รายการเงิน -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold">3. รายการที่เบิกจ่าย</h2>
+                    <button type="button" onclick="addItem()" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-200">+ เพิ่มรายการ</button>
+                </div>
+                
+                <div id="itemsContainer" class="space-y-4">
+                    <!-- รายการจะถูกแทรกที่นี่ -->
+                </div>
+
+                <!-- 4. ยอดรวม -->
+                <div class="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                    <span class="font-bold text-gray-700">ยอดรวมทั้งสิ้น:</span>
+                    <span class="text-xl font-bold text-blue-700"><span id="totalAmount">0.00</span> บาท</span>
+                </div>
+            </div>
+
+            <!-- 5. หมายเหตุ -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <h2 class="font-semibold mb-2">4. หมายเหตุ (ถ้ามี)</h2>
+                <textarea id="remarks" rows="2" class="w-full p-2 border rounded focus:ring focus:ring-blue-200 outline-none" placeholder="พิมพ์รายละเอียดเพิ่มเติม..."></textarea>
+            </div>
+
+            <!-- 6. หลักฐาน -->
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold">5. ภาพหลักฐานประกอบ</h2>
+                    <button type="button" onclick="addEvidenceSet()" class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium hover:bg-green-200">+ เพิ่มชุดหลักฐาน</button>
+                </div>
+
+                <div id="evidenceContainer" class="space-y-6">
+                    <!-- ชุดหลักฐานจะถูกแทรกที่นี่ -->
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition active:scale-95 text-lg">
+                🚀 ส่งข้อมูลเข้า Telegram
+            </button>
+        </form>
+    </div>
+
+    <!-- แอนิเมชันตอนอัปโหลด -->
+    <div id="progressOverlay">
+        <div class="text-white mb-4 text-xl font-bold text-center" id="uploadStatusText">กำลังพายเรือส่งข้อมูล...</div>
+        <div class="river">
+            <div class="boat" id="boatIcon">🚣</div>
+        </div>
+        <div class="percentage-text" id="progressPercent">0%</div>
+    </div>
+
+    <script>
+        // โหลดข้อมูลที่เคยบันทึกไว้
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('botToken').value = localStorage.getItem('financeBotToken') || '';
+            document.getElementById('chatId').value = localStorage.getItem('financeChatId') || '';
+            document.getElementById('docDate').valueAsDate = new Date();
+            
+            // สร้างรายการแรกตั้งต้น
+            addItem();
+            addEvidenceSet();
+        });
+
+        // บันทึก Token อัตโนมัติเมื่อพิมพ์
+        document.getElementById('botToken').addEventListener('input', (e) => localStorage.setItem('financeBotToken', e.target.value));
+        document.getElementById('chatId').addEventListener('input', (e) => localStorage.setItem('financeChatId', e.target.value));
+
+        let itemCount = 0;
+        let evidenceCount = 0;
+
+        // ฟังก์ชันจัดการ UI เปลี่ยนสีเวลาเลือกไฟล์แล้ว
+        function updateFileLabel(input, labelId) {
+            const label = document.getElementById(labelId);
+            const textSpan = label.querySelector('.id-text');
+            if (input.files && input.files[0]) {
+                label.classList.add('has-file');
+                textSpan.textContent = '✅ ' + input.files[0].name;
+                textSpan.classList.replace('text-gray-600', 'text-green-700');
+            } else {
+                label.classList.remove('has-file');
+                textSpan.textContent = 'แตะเพื่อเลือกรูปภาพ';
+                textSpan.classList.replace('text-green-700', 'text-gray-600');
+            }
+        }
+
+        // 3. เพิ่มรายการเงิน
+        function addItem() {
+            itemCount++;
+            const container = document.getElementById('itemsContainer');
+            const itemHtml = `
+                <div class="p-3 bg-gray-50 border rounded-lg relative item-row" id="item-${itemCount}">
+                    ${itemCount > 1 ? `<button type="button" onclick="removeItem('item-${itemCount}')" class="absolute top-2 right-2 text-red-500 hover:bg-red-100 rounded-full w-6 h-6 flex items-center justify-center">×</button>` : ''}
+                    <div class="grid grid-cols-1 gap-2 mb-2">
+                        <input type="text" class="item-desc w-full p-2 border rounded outline-none text-sm" placeholder="ชื่อรายการ (เช่น ค่าเครื่องเขียน)" required>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" step="0.01" class="item-amount w-full p-2 border rounded outline-none text-sm" placeholder="จำนวนเงิน" required oninput="calculateTotal()">
+                        <select class="item-type w-full p-2 border rounded outline-none text-sm" onchange="checkCustomType(this, ${itemCount})" required>
+                            <option value="" disabled selected>เลือกประเภทเงิน...</option>
+                            <option value="อุดหนุนรายหัว">อุดหนุนรายหัว</option>
+                            <option value="อาหารกลางวัน">อาหารกลางวัน</option>
+                            <option value="รายได้สถานศึกษา">รายได้สถานศึกษา</option>
+                            <option value="กสศ.">กสศ.</option>
+                            <option value="other">อื่นๆ (พิมพ์เอง)</option>
+                        </select>
+                    </div>
+                    <input type="text" id="customType-${itemCount}" class="item-custom-type w-full p-2 border rounded outline-none text-sm mt-2 hidden" placeholder="ระบุประเภทเงิน...">
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', itemHtml);
+        }
+
+        function removeItem(id) {
+            document.getElementById(id).remove();
+            calculateTotal();
+        }
+
+        function checkCustomType(selectEle, id) {
+            const customInput = document.getElementById(`customType-${id}`);
+            if (selectEle.value === 'other') {
+                customInput.classList.remove('hidden');
+                customInput.required = true;
+            } else {
+                customInput.classList.add('hidden');
+                customInput.required = false;
+                customInput.value = '';
+            }
+        }
+
+        // 4. คำนวณยอดรวม
+        function calculateTotal() {
+            const amounts = document.querySelectorAll('.item-amount');
+            let total = 0;
+            amounts.forEach(input => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) total += val;
+            });
+            document.getElementById('totalAmount').textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        // 6. เพิ่มชุดหลักฐาน
+        function addEvidenceSet() {
+            evidenceCount++;
+            const container = document.getElementById('evidenceContainer');
+            const setHtml = `
+                <div class="p-4 bg-gray-50 border border-gray-300 rounded-xl relative evidence-set" id="evSet-${evidenceCount}">
+                    ${evidenceCount > 1 ? `<button type="button" onclick="document.getElementById('evSet-${evidenceCount}').remove()" class="absolute -top-3 -right-2 bg-red-500 text-white rounded-full w-8 h-8 font-bold shadow">×</button>` : ''}
+                    <h3 class="font-bold text-gray-700 mb-3 text-center border-b pb-2">ชุดหลักฐานที่ ${evidenceCount}</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="file-upload-label text-sm h-24" id="lbl-ev1-${evidenceCount}">
+                            <span class="text-xl mb-1">🏦</span><span class="id-text text-xs text-center text-gray-600">หน้าบุ๊คธนาคาร</span>
+                            <input type="file" class="ev-file-1" accept="image/*" onchange="updateFileLabel(this, 'lbl-ev1-${evidenceCount}')" required>
+                        </label>
+                        <label class="file-upload-label text-sm h-24" id="lbl-ev2-${evidenceCount}">
+                            <span class="text-xl mb-1">🧾</span><span class="id-text text-xs text-center text-gray-600">รายการสุดท้าย</span>
+                            <input type="file" class="ev-file-2" accept="image/*" onchange="updateFileLabel(this, 'lbl-ev2-${evidenceCount}')" required>
+                        </label>
+                        <label class="file-upload-label text-sm h-24" id="lbl-ev3-${evidenceCount}">
+                            <span class="text-xl mb-1">📄</span><span class="id-text text-xs text-center text-gray-600">หน้าใบเบิกเงิน</span>
+                            <input type="file" class="ev-file-3" accept="image/*" onchange="updateFileLabel(this, 'lbl-ev3-${evidenceCount}')" required>
+                        </label>
+                        <label class="file-upload-label text-sm h-24" id="lbl-ev4-${evidenceCount}">
+                            <span class="text-xl mb-1">🔙</span><span class="id-text text-xs text-center text-gray-600">หลังใบเบิกเงิน</span>
+                            <input type="file" class="ev-file-4" accept="image/*" onchange="updateFileLabel(this, 'lbl-ev4-${evidenceCount}')" required>
+                        </label>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', setHtml);
+        }
+
+        // การส่งข้อมูล
+        async function submitForm(e) {
+            e.preventDefault();
+            const token = document.getElementById('botToken').value.trim();
+            const chatId = document.getElementById('chatId').value.trim();
+
+            if (!token || !chatId) {
+                alert("กรุณากรอก Bot Token และ Chat ID ให้ครบถ้วน");
+                return;
+            }
+
+            // รวบรวมข้อมูลรายการ
+            const rows = document.querySelectorAll('.item-row');
+            let itemText = '';
+            rows.forEach((row, index) => {
+                const desc = row.querySelector('.item-desc').value;
+                const amt = parseFloat(row.querySelector('.item-amount').value).toLocaleString('en-US', {minimumFractionDigits: 2});
+                const selType = row.querySelector('.item-type').value;
+                const custType = row.querySelector('.item-custom-type').value;
+                const typeName = selType === 'other' ? custType : selType;
+                
+                itemText += `${index + 1}. ${desc} - <b>${amt} บาท</b> <i>(${typeName})</i>\n`;
+            });
+
+            const docDate = document.getElementById('docDate').value;
+            const total = document.getElementById('totalAmount').textContent;
+            const remarks = document.getElementById('remarks').value;
+
+            // รวบรวมไฟล์ทั้งหมดที่จะส่ง
+            const uploadTasks = [];
+
+            // 1. งานส่งข้อความสรุป
+            const messageBody = `📅 <b>วันที่เอกสาร:</b> ${docDate}\n\n📝 <b>รายการเบิกจ่าย:</b>\n${itemText}\n💰 <b>รวมทั้งสิ้น:</b> <u>${total} บาท</u>\n\n📌 <b>หมายเหตุ:</b> ${remarks || '-'}`;
+            uploadTasks.push({ type: 'text', text: messageBody });
+
+            // 2. งานส่งรูปภาพหน้าแรก
+            uploadTasks.push({ type: 'photo', file: document.getElementById('mainDoc').files[0], caption: "📑 ภาพเอกสารหน้าแรก" });
+
+            // 3. งานส่งรูปชุดหลักฐาน
+            const evSets = document.querySelectorAll('.evidence-set');
+            evSets.forEach((set, index) => {
+                const num = index + 1;
+                uploadTasks.push({ type: 'photo', file: set.querySelector('.ev-file-1').files[0], caption: `ชุดที่ ${num}: 🏦 หน้าบุ๊คธนาคาร` });
+                uploadTasks.push({ type: 'photo', file: set.querySelector('.ev-file-2').files[0], caption: `ชุดที่ ${num}: 🧾 ภาพรายการสุดท้าย` });
+                uploadTasks.push({ type: 'photo', file: set.querySelector('.ev-file-3').files[0], caption: `ชุดที่ ${num}: 📄 หน้าใบเบิกเงิน` });
+                uploadTasks.push({ type: 'photo', file: set.querySelector('.ev-file-4').files[0], caption: `ชุดที่ ${num}: 🔙 หลังใบเบิกเงิน` });
+            });
+
+            // เริ่มกระบวนการส่ง
+            document.getElementById('progressOverlay').style.display = 'flex';
+            const totalTasks = uploadTasks.length;
+            
+            for (let i = 0; i < totalTasks; i++) {
+                const task = uploadTasks[i];
+                let success = false;
+                
+                if (task.type === 'text') {
+                    success = await sendTelegramText(token, chatId, task.text);
+                } else if (task.type === 'photo') {
+                    success = await sendTelegramPhoto(token, chatId, task.file, task.caption);
+                }
+
+                if (!success) {
+                    alert('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาตรวจสอบอินเทอร์เน็ตและตั้งค่าบอท');
+                    document.getElementById('progressOverlay').style.display = 'none';
+                    return;
+                }
+
+                // อัปเดตแอนิเมชันคนพายเรือ
+                const progress = Math.round(((i + 1) / totalTasks) * 100);
+                document.getElementById('progressPercent').innerText = `${progress}%`;
+                // ให้เรือวิ่งจาก 0% ถึง 85% ของความกว้างจอเพื่อไม่ให้ทะลุกรอบ
+                document.getElementById('boatIcon').style.left = `${progress * 0.85}%`; 
+            }
+
+            // เสร็จสิ้น
+            document.getElementById('uploadStatusText').innerText = "✅ ส่งข้อมูลสำเร็จ!";
+            setTimeout(() => {
+                document.getElementById('progressOverlay').style.display = 'none';
+                document.getElementById('financeForm').reset();
+                
+                // คืนค่า UI เป็นสถานะเริ่มต้น
+                document.querySelectorAll('.file-upload-label').forEach(lbl => {
+                    lbl.classList.remove('has-file');
+                    const span = lbl.querySelector('.id-text');
+                    span.textContent = span.textContent.includes('แตะเพื่อเลือก') ? span.textContent : 'แตะเพื่อเลือกรูปภาพ';
+                    span.classList.replace('text-green-700', 'text-gray-600');
+                });
+                document.getElementById('itemsContainer').innerHTML = '';
+                document.getElementById('evidenceContainer').innerHTML = '';
+                itemCount = 0; evidenceCount = 0;
+                addItem(); addEvidenceSet();
+                calculateTotal();
+                document.getElementById('uploadStatusText').innerText = "กำลังพายเรือส่งข้อมูล...";
+                document.getElementById('boatIcon').style.left = "0%";
+                document.getElementById('progressPercent').innerText = "0%";
+            }, 1500);
+        }
+
+        // API ส่งข้อความ
+        async function sendTelegramText(token, chatId, text) {
+            try {
+                const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' })
+                });
+                return res.ok;
+            } catch (e) { return false; }
+        }
+
+        // API ส่งรูปภาพ
+        async function sendTelegramPhoto(token, chatId, file, caption) {
+            try {
+                const formData = new FormData();
+                formData.append('chat_id', chatId);
+                formData.append('photo', file);
+                formData.append('caption', caption);
+                
+                const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                    method: 'POST',
+                    body: formData
+                });
+                return res.ok;
+            } catch (e) { return false; }
+        }
+    </script>
+</body>
+</html>
